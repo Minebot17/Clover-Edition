@@ -328,8 +328,23 @@ class GameManager:
     def __init__(self, gen: GPT2Generator):
         self.generator = gen
         self.story, self.context, self.prompt = None, None, None
+        self.conn = None
 
     def init_story(self) -> bool:
+
+        import socket
+        HOST = '127.0.0.1'
+        PORT = 65432
+        print("wait_to_connect")
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind((HOST, PORT))
+        s.listen()
+        conn, addr = s.accept()
+        print('Connected by', addr)
+        self.conn = conn
+        """data = conn.recv(1024).decode()
+        print(data)"""
+
         """
         Initializes the story. Called by play_story.
         :return: True if the GameManager should progress to the story, false otherwise.
@@ -340,10 +355,12 @@ class GameManager:
                     "Load a Saved Game",
                     "Change Settings"],
                    'menu')
-        new_game_option = input_number(3)
+
+        conn.sendall("menu;\n".encode())
+        new_game_option = int(conn.recv(8).decode())
 
         if new_game_option == 0:
-            prompt_file = select_file(Path("prompts"), ".txt")
+            prompt_file = select_file(Path("prompts"), ".txt", conn=conn)
             if prompt_file:
                 self.context, self.prompt = load_prompt(prompt_file)
             else:
@@ -370,7 +387,7 @@ class GameManager:
                 except IOError:
                     output("Permission error! Unable to save custom prompt. ", "error")
         elif new_game_option == 2:
-            story_file = select_file(Path("saves"), ".json")
+            story_file = select_file(Path("saves"), ".json", conn=conn)
             if story_file:
                 self.story, self.context, self.prompt = load_story(story_file, self.generator)
             else:
@@ -690,6 +707,7 @@ class GameManager:
 
         # Output the AI's result.
         output(result, "ai-text")
+        self.conn.send((result + "\n").encode())
 
     def play_story(self):
         """The main in-game loop"""
@@ -716,10 +734,11 @@ class GameManager:
             bell()
             print()
 
-            if use_ptoolkit():
+            """if use_ptoolkit():
                 action = input_line("> ", "main-prompt", default="%s" % "You ")
             else:
-                action = input_line("> You ", "main-prompt")
+                action = input_line("> You ", "main-prompt")"""
+            action = self.conn.recv(2048).decode()
 
             # Clear suggestions and user input
             if act_alts and not in_colab():

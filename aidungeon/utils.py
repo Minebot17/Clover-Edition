@@ -119,13 +119,14 @@ def end_sentence(text):
     return text
 
 
-def select_file(p, e, d=0):
+def select_file(p, e, d=0, conn=None):
     """
     Selects a file from a specific path matching a specific extension.
     p: The current path (and subdirectories) to choose from.
     e: The extension to filter based on.
     d: The path depth. Used for knowing when to go back or when to abort a file selection. Do not set this yourself.
     """
+    str_coll = [""]
     if p.is_dir():
         t_dirs = sorted([x for x in p.iterdir() if x.is_dir()])
         t_files = sorted([x for x in p.iterdir() if x.is_file() and x.name.endswith(e)])
@@ -134,9 +135,18 @@ def select_file(p, e, d=0):
             ["(Random)"] +
             [f.name[:-len(e)] if f.is_file() else f.name + "/" for f in files] +
             ["(Cancel)" if d == 0 else "(Back)"],
-            "menu"
+            "menu",
+            collect=True,
+            str_coll=str_coll
         )
         count = len(files) + 1
+
+        if conn is not None:
+            if e == ".txt":
+                conn.sendall(("new_game_select" + str_coll[0] + "\n").encode())
+            else:
+                conn.sendall(("save_select" + str_coll[0] + "\n").encode())
+
         i = input_number(count)
         if i == 0:
             try:
@@ -172,7 +182,8 @@ def output(text1, col1=None,
            text2=None, col2=None,
            wrap=True,
            beg=None, end='\n', sep=' ',
-           rem_beg_spaces=True):
+           rem_beg_spaces=True,
+           collect = False, str_coll = []):
     print('', end=beg)
     ptoolkit = use_ptoolkit() and ptcolors['displaymethod'] == "prompt-toolkit"
 
@@ -207,6 +218,7 @@ def output(text1, col1=None,
         cle1 = "\x1B[0m" if col1 else ""
         cle2 = "\x1B[0m" if col2 else ""
         text1 = clb1 + text1 + cle1
+
         if text2 is not None:
             text2 = clb2 + text2 + cle2
             print(text1, end='')
@@ -214,6 +226,9 @@ def output(text1, col1=None,
             print(text2, end=end)
         else:
             print(text1, end=end)
+
+    if collect:
+        str_coll.append(text1)
 
     linecount = 1
     if beg:
@@ -310,13 +325,18 @@ def sentence_split(text):
     return sentences
 
 
-def list_items(items, col='menu', start=0, end=None, wrap=False):
+def list_items(items, col='menu', start=0, end=None, wrap=False, collect = False, str_coll = []):
     """Lists a generic list of items, numbered, starting from the number passed to start. If end is not None,
     an additional element will be added with its name as the value """
     i = start
     digits = len(str(len(items)-1))
     for s in items:
-        output(str(i).rjust(digits) + ") " + s, col, end='', wrap=wrap)
+        local_coll = []
+        output(str(i).rjust(digits) + ") " + s, col, end='', wrap=wrap, collect=collect, str_coll=local_coll)
+
+        if collect:
+            str_coll[0] += ";" + local_coll[0]
+
         i += 1
     if end is not None:
         output('', end=end, wrap=wrap)
