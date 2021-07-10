@@ -143,11 +143,14 @@ def select_file(p, e, d=0, conn=None):
 
         if conn is not None:
             if e == ".txt":
-                conn.sendall(("new_game_select" + str_coll[0] + "\n").encode())
+                conn.sendall(("preset_select" + str_coll[0] + "\n").encode())
             else:
                 conn.sendall(("save_select" + str_coll[0] + "\n").encode())
 
-        i = input_number(count)
+            i = int(conn.recv(8).decode())
+        else:
+            i = input_number(count)
+
         if i == 0:
             try:
                 i = random.randrange(1, count-1)

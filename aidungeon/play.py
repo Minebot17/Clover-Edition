@@ -332,18 +332,17 @@ class GameManager:
 
     def init_story(self) -> bool:
 
-        import socket
-        HOST = '127.0.0.1'
-        PORT = 65432
-        print("wait_to_connect")
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind((HOST, PORT))
-        s.listen()
-        conn, addr = s.accept()
-        print('Connected by', addr)
-        self.conn = conn
-        """data = conn.recv(1024).decode()
-        print(data)"""
+        if self.conn is None:
+            import socket
+            HOST = '127.0.0.1'
+            PORT = 65432
+            print("wait_to_connect")
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.bind((HOST, PORT))
+            s.listen()
+            conn, addr = s.accept()
+            print('Connected by', addr)
+            self.conn = conn
 
         """
         Initializes the story. Called by play_story.
@@ -356,11 +355,11 @@ class GameManager:
                     "Change Settings"],
                    'menu')
 
-        conn.sendall("menu;\n".encode())
-        new_game_option = int(conn.recv(8).decode())
+        self.conn.sendall("menu;\n".encode())
+        new_game_option = int(self.conn.recv(8).decode())
 
         if new_game_option == 0:
-            prompt_file = select_file(Path("prompts"), ".txt", conn=conn)
+            prompt_file = select_file(Path("prompts"), ".txt", conn=self.conn)
             if prompt_file:
                 self.context, self.prompt = load_prompt(prompt_file)
             else:
@@ -387,7 +386,7 @@ class GameManager:
                 except IOError:
                     output("Permission error! Unable to save custom prompt. ", "error")
         elif new_game_option == 2:
-            story_file = select_file(Path("saves"), ".json", conn=conn)
+            story_file = select_file(Path("saves"), ".json", conn=self.conn)
             if story_file:
                 self.story, self.context, self.prompt = load_story(story_file, self.generator)
             else:
@@ -707,7 +706,6 @@ class GameManager:
 
         # Output the AI's result.
         output(result, "ai-text")
-        self.conn.send((result + "\n").encode())
 
     def play_story(self):
         """The main in-game loop"""
@@ -738,6 +736,7 @@ class GameManager:
                 action = input_line("> ", "main-prompt", default="%s" % "You ")
             else:
                 action = input_line("> You ", "main-prompt")"""
+            self.conn.sendall(("action;" + self.story.results[-1] + "\n").encode())
             action = self.conn.recv(2048).decode()
 
             # Clear suggestions and user input
