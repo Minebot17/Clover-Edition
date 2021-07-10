@@ -161,9 +161,9 @@ def select_file(p, e, d=0, conn=None):
                 output("Action cancelled. ", "message")
                 return None
             else:
-                return select_file(p.parent, e, d-1)
+                return select_file(p.parent, e, d-1, conn=conn)
         else:
-            return select_file(files[i-1], e, d+1)
+            return select_file(files[i-1], e, d+1, conn=conn)
     else:
         return p
 

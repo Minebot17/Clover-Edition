@@ -205,13 +205,18 @@ def new_story(generator, context, prompt, memory=None, first_result=None):
     return story
 
 
-def save_story(story, file_override=None, autosave=False):
+def save_story(story, file_override=None, autosave=False, conn=None):
     """Saves the existing story to a json file in the saves directory to be resumed later."""
     if not file_override:
         savefile = story.savefile
         while True:
             print()
-            temp_savefile = input_line("Please enter a name for this save: ", "query")
+            if conn is None:
+                temp_savefile = input_line("Please enter a name for this save: ", "query")
+            else:
+                conn.sendall("action;Please enter a name for this save: \n".encode())
+                temp_savefile = conn.recv(2048).decode()
+
             savefile = savefile if not temp_savefile or len(temp_savefile.strip()) == 0 else temp_savefile
             if not savefile or len(savefile.strip()) == 0:
                 output("Please enter a valid savefile name. ", "error")
@@ -371,13 +376,14 @@ class GameManager:
                 output(file.read(), "instructions", wrap=False)
             if use_ptoolkit():
                 output("Context>", "main-prompt")
-                self.context = edit_multiline()
-                output("Prompt>", "main-prompt")
-                self.prompt = edit_multiline()
+                self.conn.sendall("action;Context>\n".encode())
+                self.context = self.conn.recv(4096).decode()
+                self.conn.sendall("action;Prompt>\n".encode())
+                self.prompt = self.conn.recv(4096).decode()
             else:
                 self.context = input_line("Context> ", "main-prompt")
                 self.prompt = input_line("Prompt> ", "main-prompt")
-            filename = input_line("Name to save prompt as? (Leave blank for no save): ", "query")
+            filename = ""
             filename = re.sub("-$", "", re.sub("^-", "", re.sub("[^a-zA-Z0-9_-]+", "-", filename)))
             if filename != "":
                 try:
@@ -403,7 +409,8 @@ class GameManager:
             auto_file = ""
             if settings.getboolean("autosave"):
                 while True:
-                    auto_file = input_line("Autosaving enabled. Please enter a save name: ", "query")
+                    self.conn.sendall("action;Autosaving enabled. Please enter a save name: \n".encode())
+                    auto_file = self.conn.recv(2048).decode()
                     if not auto_file or len(auto_file.strip()) == 0:
                         output("Please enter a valid savefile name. ", "error")
                     else:
@@ -418,7 +425,7 @@ class GameManager:
             self.story.print_story()
 
         if settings.getboolean("autosave"):
-            save_story(self.story, file_override=self.story.savefile, autosave=True)
+            save_story(self.story, file_override=self.story.savefile, autosave=True, conn=self.conn)
 
         return True
 
@@ -461,7 +468,7 @@ class GameManager:
 
         elif command == "menu":
             if input_bool("Do you want to save? (y/N): ", "query"):
-                save_story(self.story)
+                save_story(self.story, conn=self.conn)
             # self.story, self.context, self.prompt = None, None, None
             return True
 
@@ -474,7 +481,7 @@ class GameManager:
 
         elif command == "quit":
             if input_bool("Do you want to save? (y/N): ", "query"):
-                save_story(self.story)
+                save_story(self.story, conn=self.conn)
             exit()
 
         elif command == "help":
@@ -570,7 +577,7 @@ class GameManager:
                     del self.story.memory[i]
 
         elif command == "save":
-            save_story(self.story)
+            save_story(self.story, conn=self.conn)
 
         elif command == "load":
             story_file = select_file(Path("saves"), ".json")
@@ -598,7 +605,7 @@ class GameManager:
                 self.story.print_last()
                 return False
             if input_bool("Do you want to save your previous story? (y/N): ", "query"):
-                save_story(self.story)
+                save_story(self.story, conn=self.conn)
             self.prompt = new_prompt
             self.story = new_story(self.generator, self.context, self.prompt, memory=self.story.memory,
                                    first_result=first_result)
@@ -758,4 +765,4 @@ class GameManager:
 
             # Autosave after every input from the user (if it's enabled)
             if settings.getboolean("autosave"):
-                save_story(self.story, file_override=self.story.savefile, autosave=True)
+                save_story(self.story, file_override=self.story.savefile, autosave=True, conn=self.conn)
